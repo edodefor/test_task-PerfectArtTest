@@ -4,9 +4,13 @@ from perfect_art import graphics
 import numpy as np
 
 from argparse import ArgumentParser
+   
 
 
-def simulation( sample_size,   #size of sample of n-days return samples, do not confuse with number of observations
+def simulation( init_population,   #size of initial population of percentiles from n-days return series
+                added_population,   #size of added population of percentiles from n-days return series
+                samples_number,   #number of samples taken from population
+                init_guess_q, #minimal r2 value for initial gues
                 q,  #quantile to calculaye percentile distribution    
                 length,   #number of observations, length of one-day returns series
                 n_days,   #number of days for n-days return values
@@ -16,7 +20,7 @@ def simulation( sample_size,   #size of sample of n-days return samples, do not 
                 delta,   #scale parameter for stable distribution function
                 r2_cutoff,   #cutoff r2 coefficient value at which the simulation terminates
                 max_iter,   #maximal number of iterations at which the simulation termibates
-                min_added_size   #size of random population added to the total population during simulation
+                inflator   #coefficient of inflation of added population at each iteration
                 ):   
     """
     This function is the principal solution to the test task.
@@ -47,7 +51,13 @@ def simulation( sample_size,   #size of sample of n-days return samples, do not 
     Parameters:
     -----------
     
-    :param sample size: int, size of sample of n-days return samples, do not confuse with number of observations
+    :param init_population: int, size of initial population of percentiles from n-days return series
+    
+    :param added_population: int, size of added population of percentiles from n-days return series
+    
+    :param samples_number: int, number of samples taken from population
+    
+    :param init_guess-q: float, minimal r2 value for initial population
     
     :param q: float, quantile to calculaye percentile distribution 
     
@@ -67,7 +77,7 @@ def simulation( sample_size,   #size of sample of n-days return samples, do not 
     
     :param max_iter: int, maximal number of iterations at which the simulation termibates
     
-    :param min_added_size: int, size of random population added to the total population during simulation
+    :param inflator: float, coefficient of inflation of added population at each iteration
     
     Returns:
     --------
@@ -77,54 +87,99 @@ def simulation( sample_size,   #size of sample of n-days return samples, do not 
     array of total variances at each iteration     
     """
     #create sample of n-days series sample object
-    levy_dist_params = sample_size, q, length, n_days, alpha, beta, gamma, delta
-    sample = series.ReturnsSample(*levy_dist_params)
+    sample = series.ReturnsSample(q=q,
+                                  length=length,
+                                  alpha=alpha,
+                                  beta=beta,
+                                  gamma=gamma,
+                                  delta=delta)
 
     #define initial values of tenp variables
     r2, _r2 = -np.inf, -np.inf
     total_mean, total_var = np.nan, np.nan
     step = 1
     
-    #define array for total population and temporary array
-    percentiles_samples = np.array([[] for i in range(sample_size)])
-    _percentiles_samples = percentiles_samples
-    
-    total_mean_array, total_var_array = [], []
+    population_mean_array, population_var_array = [], []
     r2_values = []
     steps = []
+    
+    percentiles_samples = np.array([])
+    
 
     while r2 < r2_cutoff and step <= max_iter:
-        sample.samplify() #generate random population (initial at 1 iter, added sample otherwise)
+        #creating an initial population
+        #initial population is an initial gues andconvergence depends on it
+        #therefore choose initial population with good enough quality
+        if percentiles_samples.size == 0: 
+            print(f"Generating initial population. Trying to guess initial sample with R2 >= {init_guess_q}. \n")
+            #making guesses until we reach good quality
+            populations_dict = {} 
+            idx=0
+            while _r2 < init_guess_q and idx < 50:
+                sample.series_sample(sample_size=init_population)
+                percentiles_samples = np.array(sample.percentiles_array)
+                
+                N = len(percentiles_samples) // samples_number
+        
+                N_samples = statistics.samplify(percentiles_samples, N, samples_number)
+                population_moments = statistics.get_moments(percentiles_samples, k=[1,2])
+                population_mean, population_var = population_moments[0], population_moments[1]
+        
+                _r2, sample_means = statistics.clt_r2_test(N_samples, population_mean, population_var, N)
+                
+                populations_dict[_r2] = percentiles_samples
+                idx += 1
+            
+            #for the case if we could not guess appropriate population
+            if _r2 < init_guess_q:
+                max_r2 = np.max(populations_dict.keys)
+                percentiles_samples = population_dict[max_r2]
+                print("Failed to guess initial population with required minimal quality in 50 iterations. \n")
+                print(f"initial population qith qiality R2={max_r2} was taken. \n")
+                
+            #creating temporal array     
+            _percentiles_samples = percentiles_samples
+            
+            #destroy unnecessary variables  
+            del populations_dict
+                
+        sample.series_sample(sample_size=added_population) #generate random added population 
 
         #add added sample to a total population
-        percentiles_added = np.array([sample.percentiles_array]).T
-        _percentiles_samples = np.concatenate((_percentiles_samples, percentiles_added), axis=1)    
+        percentiles_added = sample.percentiles_array
+        _percentiles_samples = np.concatenate((_percentiles_samples, percentiles_added), axis=0)    
         
-        #just to make initial population and added population larger
-        if step % min_added_size == 0:
-            total_mean, total_var, _r2, sample_means = statistics.clt_r2_test(_percentiles_samples) 
+        N = len(_percentiles_samples) // samples_number
         
-            #check if new population means samples better fit normal distribution
-            if _r2 > r2:
-                r2 = _r2
-                percentiles_samples = np.concatenate((percentiles_samples, _percentiles_samples), axis=1)
+        N_samples = statistics.samplify(_percentiles_samples, N, samples_number)
+        population_moments = statistics.get_moments(_percentiles_samples, k=[1,2])
+        population_mean, population_var = population_moments[0], population_moments[1]
+        
+        _r2, sample_means = statistics.clt_r2_test(N_samples, population_mean, population_var, N) 
+        
+        #check if new population means samples better fit normal distribution
+        if _r2 > r2:
+            r2 = _r2
+            percentiles_samples = np.concatenate((percentiles_samples, _percentiles_samples), axis=0)
+            added_population *= inflator
                 
-            total_mean_array.append(total_mean)
-            total_var_array.append(total_var)
-            r2_values.append(r2)
-            steps.append(step)
+        population_mean_array.append(population_mean)
+        population_var_array.append(population_var)
+        r2_values.append(r2)
+        steps.append(step)
             
-            #update temporal array
-            _percentiles_samples = percentiles_samples
+        #update temporal array
+        _percentiles_samples = percentiles_samples
                 
             
         step +=1
         
-        print(f"step={step-1}\t current r2={r2}\t added r2={_r2}\t mean={total_mean}\t variance={total_var}", end='\r')
+        print(f"step={step-1}\t current r2={r2}\t added r2={_r2}\t mean={population_mean}\t variance={np.sqrt(population_var)}", end='\r')
     
     
-    return (np.concatenate(percentiles_samples, axis=0), sample_means, len(percentiles_samples[0]),
-            np.array(steps), np.array(r2_values), np.array(total_mean_array), np.array(total_var_array))
+    return (percentiles_samples, sample_means, N, 
+            np.array(steps), np.array(r2_values), 
+            np.array(population_mean_array), np.array(population_var_array))
     
     
 if __name__ == '__main__':
@@ -146,15 +201,20 @@ if __name__ == '__main__':
                         help='scale parameter for stable distribution function')
     parser.add_argument('-q', '--q', default=0.01, required=False, type=float,
                         help='quantile value at which quantile (or percentile) distribution is simulated')
-    parser.add_argument('-s', '--sample_size', default=100, required=False, type=int,
-                        help='length of sample of n-days return series')
-    parser.add_argument('-r', '--r2_cutoff', default=.995, required=False, type=float,
+    parser.add_argument('-ip', '--init_population', default=1000, required=False, type=int,
+                        help='size of initial population of percentiles from n-days return series')
+    parser.add_argument('-s', '--samples_number', default=100, required=False, type=int,
+                        help='number of samples taken from population')
+    parser.add_argument('-ap', '--added_population', default=250, required=False, type=int,
+                        help='size of added population of percentiles from n-days return series')
+    parser.add_argument('-r', '--r2_cutoff', default=0.991, required=False, type=float,
                         help='value of R-squared test at which simulation is terminated')
     parser.add_argument('-m', '--max_iter', default=np.inf, required=False, type=float,
                         help='maximal number of iterations during simulation. Default if np.inf')
-    parser.add_argument('-ms', '--min_added_size', default=1, required=False, type=int,
-                        help='minimal population size of each sample element' 
-                        + 'added to the total population during simulation')
+    parser.add_argument('-if', '--inflator', default=1.5, required=False, type=float,
+                        help='coefficient of inflation of added population at each iteration')
+    parser.add_argument('-iq', '--init_guess_q', default=0.8, required=False, type=float,
+                        help='initial guess quality, minimal r2 value for initial population')
     
     #post-simulation params
     parser.add_argument('-o', '--order', default=2, required=False, type=int,
@@ -166,9 +226,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     #simulate
-    simulation_params = (args.sample_size, args.q, args.length, args.n_days, 
-                        args.alpha, args.beta, args.gamma, args.delta, 
-                        args.r2_cutoff, args.max_iter, args.min_added_size)
+    simulation_params = (args.init_population, args.added_population, args.samples_number, args.init_guess_q,
+                         args.q, args.length, args.n_days, args.alpha, args.beta, args.gamma, args.delta, 
+                        args.r2_cutoff, args.max_iter, args.inflator)
 
     percentiles, means, N, steps, r2_t, mean_t, var_t = simulation(*simulation_params)
     
@@ -207,6 +267,6 @@ if __name__ == '__main__':
         x_label_conv = f"steps"
         y_label_conv = r"$R^2$"
         
-        graphics.save_plot(steps, np.log(r2_t), label_conv, x_label_conv, y_label_conv, title_conv)
+        graphics.save_plot(steps, 1-r2_t, label_conv, x_label_conv, y_label_conv, title_conv)
         
         print("Convergence plot was saved to ./figures")

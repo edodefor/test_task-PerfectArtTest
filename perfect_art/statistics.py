@@ -1,11 +1,44 @@
 import numpy as np
 import scipy as sp   
 from sklearn.metrics import r2_score
+import random
         
 """
 This module provides functions nessesary to process returns series and to perform stochastic simulations
 
 """
+
+def samplify(population, N, samples_number):
+    """
+    Take sample_number samples of size N from population
+    
+    Parameters:
+    -----------
+    
+    :param population: 1D array, population to take samples from
+    
+    :param N: int, sample size
+    
+    :param sample_numbe: int, number of samples to take
+    
+    :param wo_doubles: bool, allow use same values in different samples
+    
+    
+    Return:
+    -------
+    
+    :return: array of samples  
+    """
+    
+    if N * samples_number > len(population):
+        raise Warning("Total number of elements in all samples is greater than population size. It may affect samples quality")
+    
+    samples_array = []
+    for idx in range(samples_number):
+        samples_array.append(random.sample(list(population), N))
+        
+    return np.array(samples_array)
+
 
 def get_distribution(sample, bins = None, normalized = True):
     """
@@ -139,7 +172,7 @@ def get_moments(sample, k=1):
             
                     
 
-def clt_r2_test(samples, bins = None):
+def clt_r2_test(samples, population_mean, population_var, N, bins = None):
     """
     Calculate r-squared value, coefficient of determination between sample means distribution and normal distribution
     to perform Central Limit Theorm test on closeness of distribution of shifted means to distribution to N(0,1)
@@ -155,17 +188,12 @@ def clt_r2_test(samples, bins = None):
     --------
     
     :return: population mean, population variance, r-squared coefficient, array of sample means 
-    """
-     
-    N = len(np.array(samples).T)     #Number of elements in one sample
-    
+    """    
     # calculate set of sample means, total population mean and variance
     sample_means = get_moments(samples)
-    total_mean = np.mean(np.concatenate(samples, axis=0))
-    total_var = np.sqrt(np.var(np.concatenate(samples, axis=0)))
     
     #obtaining sequence of means S_n = (mean(X_n) - E(X))/(sigma/sqrt(n))
-    S = np.sqrt(N)*(sample_means - total_mean)/total_var
+    S = np.sqrt(N)*(sample_means - population_mean)/np.sqrt(population_var)
     
     #calculate frequency (or prodability in the n->inf limit) distribution of S_n
     #and realization of N(0,1)
@@ -177,7 +205,7 @@ def clt_r2_test(samples, bins = None):
     #therefor r2 shows goodness of fit
     r2_val = r2_score(np.cumsum(sample_pdf), true_normal)
     
-    return total_mean, total_var, r2_val, sample_means     
+    return r2_val, sample_means     
       
          
          

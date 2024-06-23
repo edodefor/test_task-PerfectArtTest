@@ -46,7 +46,10 @@ def save_hist(x, y, legend, x_label, y_label, title, figsize=(10,10), dpi=500):
         for (_x,_y,l) in zip(x,y,legend):
             width = abs(np.max(_x) - np.min(_x)) / 100
             ax.bar(_x, _y, width=width, alpha=alpha, label=l) 
+            
         
+        ax.axhline(0, color='black', linewidth=3)   
+             
         plt.xlabel(x_label)
         plt.ylabel(y_label)
         plt.title(title)
@@ -61,6 +64,8 @@ def save_hist(x, y, legend, x_label, y_label, title, figsize=(10,10), dpi=500):
         plt.ylabel(y_label)
         plt.title(title)
         plt.legend()
+        
+        ax.axhline(0, color='black', linewidth=3)   
         
         plt.savefig("figures/" + title + ".png")
         
@@ -107,6 +112,8 @@ def save_plot(x, y, labels, x_label, y_label, title, figsize=(10,10), dpi=500):
         
         for (_x,_y,l) in zip(x,y,labels):
             ax.plot(_x, _y, linewidth=2, label=l) 
+            
+        ax.axhline(0, color='black', linewidth=3)   
         
         plt.xlabel(x_label)
         plt.ylabel(y_label)
@@ -117,6 +124,9 @@ def save_plot(x, y, labels, x_label, y_label, title, figsize=(10,10), dpi=500):
         
     except:
         ax.plot(x, y, linewidth=2, label=labels) 
+        
+        ax.axhline(0, color='black', linewidth=3)   
+        
         plt.xlabel(x_label)
         plt.ylabel(y_label)
         plt.title(title)

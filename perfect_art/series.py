@@ -99,7 +99,7 @@ class ReturnsSample(ReturnSeries):
     Methods:
     --------
     
-    :param samplify: 
+    :param series_sample: 
         Creates samples of one-day and n-days returns series.
     """
     
@@ -133,7 +133,7 @@ class ReturnsSample(ReturnSeries):
                               delta = delta )
                             
     
-    def samplify(self, sample_size=None, q=None):
+    def series_sample(self, sample_size=None, q=None):
         """
         Generate random samples of 'sample_size' sequencies of one-day and n-day returns.
         
