@@ -207,13 +207,13 @@ if __name__ == '__main__':
                         help='number of samples taken from population')
     parser.add_argument('-ap', '--added_population', default=250, required=False, type=int,
                         help='size of added population of percentiles from n-days return series')
-    parser.add_argument('-r', '--r2_cutoff', default=0.991, required=False, type=float,
+    parser.add_argument('-r', '--r2_cutoff', default=0.995, required=False, type=float,
                         help='value of R-squared test at which simulation is terminated')
     parser.add_argument('-m', '--max_iter', default=np.inf, required=False, type=float,
                         help='maximal number of iterations during simulation. Default if np.inf')
-    parser.add_argument('-if', '--inflator', default=1.5, required=False, type=float,
+    parser.add_argument('-if', '--inflator', default=1., required=False, type=float,
                         help='coefficient of inflation of added population at each iteration')
-    parser.add_argument('-iq', '--init_guess_q', default=0.8, required=False, type=float,
+    parser.add_argument('-iq', '--init_guess_q', default=0.85, required=False, type=float,
                         help='initial guess quality, minimal r2 value for initial population')
     
     #post-simulation params
